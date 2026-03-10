@@ -1,0 +1,56 @@
+import itertools
+from sage.all import *
+
+from sage.interfaces.macaulay2 import macaulay2 as m2
+
+varlist = [f'a{k}' for k in range(0,100)] 
+R = m2(f'QQ[{','.join(varlist)}]') #initialising a polynomial ring in 100 variables a0,a1,...,a99. should be enough variables
+m2('needsPackage "SymbolicPowers"')
+
+def relabel_sage_graph(G): #vertex sets in sage graphs are numbers, which are not allowed to be variables in m2 ideals. so we convert vertex k to the variable ak using this function
+    G.relabel({v : f'a{v}' for v in G.vertices()})
+
+def rconnected_ideal(r,G): #computing the r-connected ideal of a graph and returning m2 input
+    gens = []
+    rtuples = itertools.combinations(G.vertices(),r)
+    for x in rtuples:
+        S = G.subgraph(x)
+        if S.is_connected():
+            gens.append('*'.join(str(i) for i in x))
+    return f'ideal ({','.join(gens)})'
+
+
+def nthsymbolic_ordinary_equality(n,I): #checking equality
+    m2(f'I = {I}')
+    m2(f'J = symbolicPower(I,{n})')
+    return 'true' == str(m2(f'J == I^{n}'))
+
+
+
+#the following function takes as parameters a set of graphs "family", an index "m" and a number "r". 
+#it loops through all members of the family, checks if the m-th symbolic and ordinary powers of their r-connected ideals match.
+#then it saves an image of graphs with equality on your system
+def checker(graph_family,m,r): 
+    print(f"checking equality of {m}-rd(th) symbolic and ordinary powers of {r}-connected ideal(s) of graph(s) in {graph_family}") 
+    for G in enumerate(graph_family): 
+        relabel_sage_graph(G[1])
+        I = rconnected_ideal(r,G[1])
+        if nthsymbolic_ordinary_equality(m, I) == True:
+            print(G[0])
+            print("adjacency matrix of graph:")
+            print(G[1].adjacency_matrix()) #printing graph
+            P = G[1].plot()
+            P.save(f"output{G[0]}.png")
+
+
+#EXAMPLES: 
+#to run any of these, uncomment the code
+
+#below, we check for which connected graphs on 6 vertices the, second symbolic power and the second ordinary power of the 5-connected ideals are equal 
+#checker(graphs.nauty_geng("8 -c"), 2, ) 
+#here we check if the 2nd sybmolic powers of 4k-cycles of 4-connected ideals work
+#checker([graphs.CycleGraph(4*k) for k in range(1,6)],2,4). this returns true
+
+
+#checking if the 3rd powers of the 4-connected ideal of C_20 match up. this computation is taking some time
+#checker([graphs.CycleGraph(20),3,4],3,4)
